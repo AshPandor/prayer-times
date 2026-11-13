@@ -210,11 +210,26 @@ h1 {
   color: var(--accent-strong);
 }
 
+.prayer-times {
+  text-align: right;
+}
+
 .prayer-time {
   font-variant-numeric: tabular-nums;
   font-size: 1.15rem;
   font-weight: 700;
 }
+
+.jamah {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.prayer-row.is-next .jamah { color: var(--accent-strong); }
 
 .method-line { margin-top: 10px; }
 

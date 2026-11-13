@@ -6,10 +6,10 @@
  *
  * Order of work on each load:
  *   1. Read settings from localStorage.
- *   2. Find coordinates (GPS, or a city name, or the saved Coventry point).
- *   3. Download this month from Aladhan, or use the saved month if we are offline.
- *   4. Paint the next prayer, the list, and the Qibla.
- *   5. Tick the countdown once a second.
+ *   2. By default, download Masjid Zeenatul Islam's own timetable.
+ *      Calculated Aladhan times are only used when that setting is chosen.
+ *   3. Paint the next prayer (or jamaat), the list, and the Qibla.
+ *   4. Tick the countdown once a second.
  */
 
 import {
@@ -21,6 +21,13 @@ import {
   DEFAULT_METHOD,
   DEFAULT_SCHOOL,
 } from './lib/aladhan.js';
+import {
+  MOSQUE,
+  momentsOnDay,
+  nextMosqueMoment,
+  prayerTimeUrl,
+  unwrapMosqueDays,
+} from './lib/mosque.js';
 import {
   DEFAULT_PLACE,
   formatCoords,
@@ -47,7 +54,7 @@ import {
   qiblaBearing,
   smoothHeading,
 } from './lib/qibla.js';
-import { MONTH_KEY, SETTINGS_KEY, loadJson, saveJson } from './lib/storage.js';
+import { MONTH_KEY, MOSQUE_KEY, SETTINGS_KEY, loadJson, saveJson } from './lib/storage.js';
 
 const ROWS = [
   { key: 'Fajr', label: 'Fajr' },
@@ -87,6 +94,7 @@ const el = {
   dateLine: document.querySelector('#date-line'),
   banners: document.querySelector('#banners'),
   retry: document.querySelector('#retry-button'),
+  nextLabel: document.querySelector('#next-label'),
   nextName: document.querySelector('#next-name'),
   countdown: document.querySelector('#countdown'),
   countdownSpoken: document.querySelector('#countdown-spoken'),
@@ -99,6 +107,8 @@ const el = {
   lubber: document.querySelector('#lubber'),
   compassButton: document.querySelector('#compass-button'),
   form: document.querySelector('#settings-form'),
+  timetable: document.querySelector('#timetable'),
+  calculatedFields: document.querySelector('#calculated-fields'),
   method: document.querySelector('#method'),
   school: document.querySelector('#school'),
   city: document.querySelector('#city'),
@@ -125,6 +135,7 @@ function loadAppSettings() {
       typeof saved.country === 'string' && saved.country.trim()
         ? saved.country.trim()
         : DEFAULT_PLACE.country,
+    timetable: saved.timetable === 'calculated' ? 'calculated' : 'mosque',
     locationMode: saved.locationMode === 'city' ? 'city' : 'auto',
     remindersEnabled: saved.remindersEnabled === true,
     reminderMinutes: Number.isFinite(minutes) ? Math.min(90, Math.max(0, Math.round(minutes))) : 10,
@@ -146,7 +157,17 @@ function fillSelect(select, options) {
   }
 }
 
+function usingMosque() {
+  return state.settings.timetable !== 'calculated';
+}
+
+function syncTimetableFields() {
+  el.timetable.value = usingMosque() ? 'mosque' : 'calculated';
+  el.calculatedFields.hidden = usingMosque();
+}
+
 function applySettingsToForm() {
+  syncTimetableFields();
   el.method.value = String(state.settings.method);
   el.school.value = String(state.settings.school);
   el.city.value = state.settings.city;
@@ -180,7 +201,14 @@ function updateReminderNote() {
 function bindForm() {
   el.form.addEventListener('submit', (event) => {
     event.preventDefault();
-    el.useCity.click();
+    if (!usingMosque()) el.useCity.click();
+  });
+
+  el.timetable.addEventListener('change', () => {
+    state.settings.timetable = el.timetable.value === 'calculated' ? 'calculated' : 'mosque';
+    persistSettings();
+    syncTimetableFields();
+    refresh();
   });
 
   el.method.addEventListener('change', () => {
@@ -202,14 +230,18 @@ function bindForm() {
     state.settings.country = country || DEFAULT_PLACE.country;
     el.city.value = state.settings.city;
     el.country.value = state.settings.country;
+    state.settings.timetable = 'calculated';
     state.settings.locationMode = 'city';
     persistSettings();
+    syncTimetableFields();
     refresh();
   });
 
   el.useGps.addEventListener('click', () => {
+    state.settings.timetable = 'calculated';
     state.settings.locationMode = 'auto';
     persistSettings();
+    syncTimetableFields();
     refresh();
   });
 
@@ -345,6 +377,69 @@ async function fetchMonth(query) {
   return body.data;
 }
 
+function mosquePlace() {
+  return {
+    source: 'mosque',
+    label: MOSQUE.name,
+    latitude: MOSQUE.latitude,
+    longitude: MOSQUE.longitude,
+    timeZone: MOSQUE.timeZone,
+  };
+}
+
+async function fetchMosqueJson(filter) {
+  const response = await fetch(prayerTimeUrl(filter), { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`The mosque site replied with ${response.status}.`);
+  return response.json();
+}
+
+async function loadMosque() {
+  state.timeZone = MOSQUE.timeZone;
+  state.place = mosquePlace();
+
+  let days = null;
+  let source = 'network';
+  try {
+    // The year is one download. Tomorrow, and an offline day later this year, are in it.
+    // Hijri on this feed can disagree with the date printed on the mosque homepage,
+    // so the page shows the Gregorian date from the timetable and leaves Hijri off.
+    days = unwrapMosqueDays(await fetchMosqueJson('year'));
+    if (days.length === 0) throw new Error('The mosque timetable was empty.');
+    saveJson(MOSQUE_KEY, { savedAt: Date.now(), days });
+  } catch (error) {
+    const cached = loadJson(MOSQUE_KEY, null);
+    if (!cached || !Array.isArray(cached.days) || cached.days.length === 0) {
+      const offline = !navigator.onLine;
+      throw new Error(
+        offline
+          ? 'You are offline, and the Zeenatul Islam timetable has not been saved on this phone yet.'
+          : (error && error.message) || 'Could not download the Zeenatul Islam timetable.',
+      );
+    }
+    days = cached.days;
+    source = 'cache';
+  }
+
+  const isoToday = isoDateInZone(new Date(), MOSQUE.timeZone);
+  const index = days.findIndex((day) => day.isoDate === isoToday);
+  if (index < 0) {
+    state.today = null;
+    state.tomorrow = null;
+    throw new Error('The saved mosque timetable does not include today. Connect once to download this year.');
+  }
+  state.today = days[index];
+  state.tomorrow = days[index + 1] || null;
+  state.source = source;
+  state.listKey = '';
+}
+
+function isoDateInZone(date, timeZone) {
+  const parts = zonedParts(date, timeZone);
+  const month = String(parts.month).padStart(2, '0');
+  const day = String(parts.day).padStart(2, '0');
+  return `${parts.year}-${month}-${day}`;
+}
+
 function couldNotDownloadMessage() {
   if (!navigator.onLine) {
     return 'You are offline, and there are no saved times for this place yet. Connect once to download the month.';
@@ -429,13 +524,21 @@ async function refresh() {
   const seq = ++requestSeq;
   state.loading = true;
   state.error = '';
+  if (usingMosque()) state.place = mosquePlace();
   render();
 
   try {
-    await resolveCoordinates();
-    if (seq !== requestSeq) return;
-    render();
-    await loadMonth();
+    if (usingMosque()) {
+      state.place = mosquePlace();
+      state.usingCityFallback = false;
+      render();
+      await loadMosque();
+    } else {
+      await resolveCoordinates();
+      if (seq !== requestSeq) return;
+      render();
+      await loadMonth();
+    }
     if (seq !== requestSeq) return;
     state.error = '';
   } catch (error) {
@@ -468,7 +571,8 @@ function renderHeader() {
   }
 
   el.locationName.textContent = state.place.source === 'gps' ? 'Current location' : state.place.label;
-  el.locationDetail.textContent = formatCoords(state.place.latitude, state.place.longitude);
+  el.locationDetail.textContent =
+    state.place.source === 'mosque' ? MOSQUE.address : formatCoords(state.place.latitude, state.place.longitude);
 
   if (!state.today) {
     el.dateLine.textContent = state.loading ? 'Loading today’s times…' : '';
@@ -476,6 +580,12 @@ function renderHeader() {
   }
 
   const gregorian = state.today.date.gregorian;
+  if (state.today.source === 'mosque') {
+    const hijri = state.today.hijriLabel ? ` · ${state.today.hijriLabel}` : '';
+    el.dateLine.textContent = `${gregorian.weekday.en} ${Number(gregorian.day)} ${gregorian.month.en}${hijri}`;
+    return;
+  }
+
   const hijri = state.today.date.hijri;
   el.dateLine.textContent = `${gregorian.weekday.en} ${Number(gregorian.day)} ${gregorian.month.en} · ${hijri.day} ${hijri.month.en} ${hijri.year}`;
 }
@@ -513,6 +623,10 @@ function renderMethodLine() {
     el.methodLine.textContent = '';
     return;
   }
+  if (state.today.source === 'mosque') {
+    el.methodLine.textContent = 'The large time is when the prayer begins. Jamaat is when the mosque prays together.';
+    return;
+  }
   const method = methodById(state.settings.method);
   const school = state.settings.school === 1 ? 'Hanafi Asr' : 'Standard Asr';
   el.methodLine.textContent = `${method ? method.name : 'Custom method'} · ${school}`;
@@ -533,7 +647,8 @@ function renderPrayerList() {
     if (isNext) {
       const badge = document.createElement('span');
       badge.className = 'badge';
-      badge.textContent = 'Next';
+      badge.textContent =
+        state.next.kind === 'jamah' ? (state.next.label === "Jumu'ah" ? "Jumu'ah" : 'Jamaat') : 'Next';
       name.append(badge);
     }
 
@@ -543,7 +658,21 @@ function renderPrayerList() {
     time.dateTime = formatClock(minutes);
     time.textContent = formatClock(minutes);
 
-    item.append(name, time);
+    const times = document.createElement('span');
+    times.className = 'prayer-times';
+    times.append(time);
+
+    const jamahClock = state.today.jamah && state.today.jamah[row.key];
+    const beginsClock = formatClock(minutes);
+    if (jamahClock && jamahClock !== beginsClock) {
+      const jamah = document.createElement('span');
+      jamah.className = 'jamah';
+      const jamahName = row.key === 'Dhuhr' && state.today.isFriday ? "Jumu'ah" : 'Jamaat';
+      jamah.textContent = `${jamahName} ${jamahClock}`;
+      times.append(jamah);
+    }
+
+    item.append(name, times);
     el.prayerList.append(item);
   }
 }
@@ -559,35 +688,69 @@ function renderCountdown() {
     return;
   }
 
-  const next = resolveNextPrayer({
-    now: new Date(),
-    timeZone: state.timeZone,
-    today: state.today,
-    tomorrow: state.tomorrow,
-  });
+  const next = resolveDisplayedNext(new Date());
   state.next = next;
 
   const seconds = Math.round((next.at.getTime() - Date.now()) / 1000);
-  el.nextName.textContent = next.name;
+  el.nextLabel.textContent = next.kind === 'jamah' ? 'Next at the mosque' : 'Next prayer';
+  el.nextName.textContent = next.label;
   el.countdown.textContent = formatCountdown(seconds);
 
   const minuteBucket = Math.floor(Math.max(0, seconds) / 60);
-  const spokenKey = `${next.name}|${next.isTomorrow}|${minuteBucket}`;
+  const spokenKey = `${next.label}|${next.kind}|${next.isTomorrow}|${minuteBucket}`;
   if (spokenKey !== state.spokenKey) {
     state.spokenKey = spokenKey;
-    el.countdownSpoken.textContent = describeCountdown(seconds, next.name, next.isTomorrow);
+    let spoken = describeCountdown(seconds, next.label, next.isTomorrow);
+    if (next.kind === 'begins' && next.jamahClock && next.jamahClock !== next.beginsClock) {
+      const day = next.isTomorrow && state.tomorrow ? state.tomorrow : state.today;
+      const congregation = next.name === 'Dhuhr' && day.isFriday ? "Jumu'ah" : 'Jamaat';
+      spoken += `. ${congregation} at ${next.jamahClock}`;
+    }
+    el.countdownSpoken.textContent = spoken;
   }
 
-  const listKey = `${next.name}|${next.isTomorrow}`;
+  const listKey = `${next.name}|${next.kind}|${next.isTomorrow}`;
   if (listKey !== state.listKey) {
     state.listKey = listKey;
     renderPrayerList();
   }
 
-  if (state.titleKey !== next.name) {
-    state.titleKey = next.name;
-    document.title = `${next.name} · Prayer Times & Qibla`;
+  if (state.titleKey !== next.label) {
+    state.titleKey = next.label;
+    document.title = `${next.label} · Prayer Times & Qibla`;
   }
+}
+
+function resolveDisplayedNext(now) {
+  if (state.today.source === 'mosque') {
+    const nowMinutes = zonedParts(now, state.timeZone).minutesSinceMidnight;
+    const moment = nextMosqueMoment(state.today, state.tomorrow, nowMinutes);
+    return { ...moment, at: instantForMoment(moment) };
+  }
+
+  const next = resolveNextPrayer({
+    now,
+    timeZone: state.timeZone,
+    today: state.today,
+    tomorrow: state.tomorrow,
+  });
+  return { ...next, label: next.name, kind: 'begins' };
+}
+
+function instantForMoment(moment) {
+  const daySource = moment.isTomorrow && state.tomorrow ? state.tomorrow : state.today;
+  let [day, month, year] = daySource.date.gregorian.date.split('-').map(Number);
+  if (moment.isTomorrow && !state.tomorrow) day += 1;
+  return zonedWallTimeToDate(
+    {
+      year,
+      month,
+      day,
+      hour: Math.floor(moment.atMinutes / 60),
+      minute: moment.atMinutes % 60,
+    },
+    state.timeZone,
+  );
 }
 
 function renderCompass() {
@@ -704,6 +867,21 @@ function clearReminders() {
 }
 
 function collectUpcoming() {
+  if (state.today && state.today.source === 'mosque') {
+    const upcoming = [];
+    for (const day of [state.today, state.tomorrow]) {
+      if (!day) continue;
+      for (const moment of momentsOnDay(day, day !== state.today)) {
+        upcoming.push({
+          name: moment.label,
+          label: formatClock(moment.atMinutes),
+          at: instantForMoment(moment),
+        });
+      }
+    }
+    return upcoming;
+  }
+
   const upcoming = [];
   const days = [state.today];
   if (state.tomorrow) days.push(state.tomorrow);

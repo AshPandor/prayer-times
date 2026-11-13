@@ -15,7 +15,7 @@
  * signal is served from this cache.
  */
 
-const CACHE = 'prayer-times-shell-v1';
+const CACHE = 'prayer-times-shell-v2';
 
 // Paths are relative to this file, so they work at /prayer-times/ and at
 // http://localhost/ during a local preview.
@@ -26,6 +26,7 @@ const ASSETS = [
   './app.js',
   './manifest.json',
   './lib/aladhan.js',
+  './lib/mosque.js',
   './lib/places.js',
   './lib/prayer.js',
   './lib/qibla.js',

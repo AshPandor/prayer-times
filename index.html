@@ -93,6 +93,16 @@
         <!-- Options for the two selects are added by app.js, from lib/aladhan.js, so the API numbers live in one place. -->
         <form id="settings-form">
           <div class="field">
+            <label for="timetable">Times</label>
+            <p class="help" id="timetable-help">Masjid Zeenatul Islam on Stoney Stanton Road publishes its own beginning and jamaat times. Calculated times are for when you are away from the mosque.</p>
+            <select id="timetable" name="timetable" aria-describedby="timetable-help">
+              <option value="mosque" selected>Masjid Zeenatul Islam</option>
+              <option value="calculated">Calculated for a place</option>
+            </select>
+          </div>
+
+          <div id="calculated-fields" hidden>
+          <div class="field">
             <label for="method">Calculation method</label>
             <p class="help" id="method-help">Moonsighting Committee is a solid default in the UK. Many mosques print Muslim World League times. Pick the one your mosque uses. Around midsummer, far northern latitudes make Fajr and Isha unusual; Moonsighting Committee is built for that.</p>
             <select id="method" name="method" aria-describedby="method-help"></select>
@@ -116,6 +126,7 @@
             <button type="button" id="use-city" class="button">Use this city</button>
             <button type="button" id="use-gps" class="button secondary">Use my location</button>
           </div>
+          </div>
 
           <div class="field reminder">
             <label class="check">
@@ -124,7 +135,7 @@
             </label>
             <label for="reminder-minutes">Minutes before</label>
             <input id="reminder-minutes" type="number" min="0" max="90" step="1" inputmode="numeric" value="10">
-            <p class="help" id="reminder-help">Reminders use the notification system while this page is open. A true background alert — one that still arrives hours after you have closed the app — needs a server, and this version does not have one. On an iPhone, website notifications only work after you add the app to the Home Screen, and only on iOS 16.4 or later. Android can be more generous, but the browser may still delay a timer while the screen is off.</p>
+            <p class="help" id="reminder-help">On the mosque timetable this fires before each beginning time and before jamaat, when jamaat is later. Reminders only run while this page is open. A true background alert — one that still arrives hours after you have closed the app — needs a server, and this version does not have one. On an iPhone, website notifications only work after you add the app to the Home Screen, and only on iOS 16.4 or later.</p>
             <p class="help" id="reminder-note"></p>
           </div>
         </form>
@@ -138,7 +149,7 @@
     </main>
 
     <footer class="footer">
-      <p>Prayer times from the <a href="https://aladhan.com/prayer-times-api">Aladhan API</a>. The Qibla bearing is worked out on your phone from the Kaaba at 21.4225°N, 39.8262°E. City names are looked up with <a href="https://open-meteo.com/en/docs/geocoding-api">Open-Meteo</a>.</p>
+      <p>Prayer times from <a href="https://masjidzeenatulislam.org.uk">Masjid Zeenatul Islam</a>, Coventry. Calculated times, when you switch them on, come from the <a href="https://aladhan.com/prayer-times-api">Aladhan API</a>. The Qibla bearing is worked out on your phone from the Kaaba at 21.4225°N, 39.8262°E.</p>
     </footer>
   </div>
 
