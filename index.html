@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Prayer Times &amp; Qibla</title>
+  <meta name="description" content="Today's five prayer times, a countdown to the next prayer, and a Qibla compass. Works offline after the first visit.">
+  <!-- theme-color tints the browser bar. Two tags so light and dark follow the system. -->
+  <meta name="theme-color" content="#f3f6fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Prayer Times">
+  <!--
+    Relative links, not /manifest.json. On GitHub Pages the site lives at
+    /prayer-times/, so a root-absolute path would look at the wrong place.
+    The browser resolves these against the page URL.
+  -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Prayer Times &amp; Qibla</h1>
+      <p id="location-name" class="location">Finding your location…</p>
+      <p id="location-detail" class="muted"></p>
+      <p id="date-line" class="muted">Loading today’s times…</p>
+    </header>
+
+    <div id="banners" class="banners" aria-live="polite"></div>
+    <button type="button" id="retry-button" class="button secondary" hidden>Try again</button>
+
+    <main>
+      <section class="card hero" aria-labelledby="next-label">
+        <p id="next-label" class="eyebrow">Next prayer</p>
+        <h2 id="next-name" class="next-name">—</h2>
+        <!-- The ticking clock is hidden from screen readers. The sentence below updates once a minute. -->
+        <p id="countdown" class="countdown" aria-hidden="true">--:--:--</p>
+        <p id="countdown-spoken" class="hero-note">Loading today’s times…</p>
+      </section>
+
+      <section class="card" aria-labelledby="times-heading">
+        <h2 id="times-heading" class="section-title">Today</h2>
+        <ol id="prayer-list" class="prayer-list"></ol>
+        <p id="method-line" class="muted method-line"></p>
+      </section>
+
+      <section class="card" aria-labelledby="qibla-heading">
+        <h2 id="qibla-heading" class="section-title">Qibla</h2>
+        <div class="compass-face">
+          <div id="lubber" class="lubber" hidden></div>
+          <svg class="compass" viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="dial-face" cx="100" cy="100" r="92"></circle>
+            <circle class="dial-ring" cx="100" cy="100" r="92"></circle>
+            <g id="compass-rose">
+              <line x1="100.0" y1="26.0" x2="100.0" y2="10.0" class="tick major"></line>
+              <line x1="140.0" y1="30.7" x2="145.0" y2="22.1" class="tick"></line>
+              <line x1="169.3" y1="60.0" x2="177.9" y2="55.0" class="tick"></line>
+              <line x1="174.0" y1="100.0" x2="190.0" y2="100.0" class="tick major"></line>
+              <line x1="169.3" y1="140.0" x2="177.9" y2="145.0" class="tick"></line>
+              <line x1="140.0" y1="169.3" x2="145.0" y2="177.9" class="tick"></line>
+              <line x1="100.0" y1="174.0" x2="100.0" y2="190.0" class="tick major"></line>
+              <line x1="60.0" y1="169.3" x2="55.0" y2="177.9" class="tick"></line>
+              <line x1="30.7" y1="140.0" x2="22.1" y2="145.0" class="tick"></line>
+              <line x1="26.0" y1="100.0" x2="10.0" y2="100.0" class="tick major"></line>
+              <line x1="30.7" y1="60.0" x2="22.1" y2="55.0" class="tick"></line>
+              <line x1="60.0" y1="30.7" x2="55.0" y2="22.1" class="tick"></line>
+              <text class="cardinal north" x="100" y="42" text-anchor="middle">N</text>
+              <text class="cardinal" x="164" y="106" text-anchor="middle">E</text>
+              <text class="cardinal" x="100" y="170" text-anchor="middle">S</text>
+              <text class="cardinal" x="36" y="106" text-anchor="middle">W</text>
+            </g>
+            <!-- The needle is drawn pointing up. JavaScript rotates it. -->
+            <g id="qibla-needle">
+              <polygon class="needle-head" points="100,24 108,104 100,96 92,104"></polygon>
+              <polygon class="needle-tail" points="100,148 106,104 100,96 94,104"></polygon>
+            </g>
+            <circle class="hub" cx="100" cy="100" r="5"></circle>
+          </svg>
+        </div>
+        <p id="qibla-readout" class="qibla-readout">Waiting for a location.</p>
+        <p id="qibla-help" class="muted">The bearing is calculated on this phone. The Kaaba is at 21.4225°N, 39.8262°E.</p>
+        <button type="button" id="compass-button" class="button" hidden>Enable compass</button>
+      </section>
+
+      <section class="card" aria-labelledby="settings-heading">
+        <h2 id="settings-heading" class="section-title">Settings</h2>
+        <!-- Options for the two selects are added by app.js, from lib/aladhan.js, so the API numbers live in one place. -->
+        <form id="settings-form">
+          <div class="field">
+            <label for="timetable">Times</label>
+            <p class="help" id="timetable-help">Masjid Zeenatul Islam on Stoney Stanton Road publishes its own beginning and jamaat times. Calculated times are for when you are away from the mosque.</p>
+            <select id="timetable" name="timetable" aria-describedby="timetable-help">
+              <option value="mosque" selected>Masjid Zeenatul Islam</option>
+              <option value="calculated">Calculated for a place</option>
+            </select>
+          </div>
+
+          <div id="calculated-fields" hidden>
+          <div class="field">
+            <label for="method">Calculation method</label>
+            <p class="help" id="method-help">Moonsighting Committee is a solid default in the UK. Many mosques print Muslim World League times. Pick the one your mosque uses. Around midsummer, far northern latitudes make Fajr and Isha unusual; Moonsighting Committee is built for that.</p>
+            <select id="method" name="method" aria-describedby="method-help"></select>
+          </div>
+
+          <div class="field">
+            <label for="school">Asr calculation</label>
+            <p class="help" id="school-help">Hanafi Asr is later in the afternoon. Standard is the earlier Asr used by the Shafi, Maliki and Hanbali schools. The default here is Hanafi, which is common in the UK.</p>
+            <select id="school" name="school" aria-describedby="school-help"></select>
+          </div>
+
+          <div class="field">
+            <label for="city">City, if location is off</label>
+            <input id="city" name="city" type="text" autocomplete="address-level2" enterkeyhint="next" value="Coventry" required>
+          </div>
+          <div class="field">
+            <label for="country">Country</label>
+            <input id="country" name="country" type="text" autocomplete="country-name" enterkeyhint="done" value="United Kingdom" required>
+          </div>
+          <div class="row-buttons">
+            <button type="button" id="use-city" class="button">Use this city</button>
+            <button type="button" id="use-gps" class="button secondary">Use my location</button>
+          </div>
+          </div>
+
+          <div class="field reminder">
+            <label class="check">
+              <input id="reminders" type="checkbox">
+              <span>Remind me before each prayer</span>
+            </label>
+            <label for="reminder-minutes">Minutes before</label>
+            <input id="reminder-minutes" type="number" min="0" max="90" step="1" inputmode="numeric" value="10">
+            <p class="help" id="reminder-help">On the mosque timetable this fires before each beginning time and before jamaat, when jamaat is later. Reminders only run while this page is open. A true background alert — one that still arrives hours after you have closed the app — needs a server, and this version does not have one. On an iPhone, website notifications only work after you add the app to the Home Screen, and only on iOS 16.4 or later.</p>
+            <p class="help" id="reminder-note"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="install-heading">
+        <h2 id="install-heading" class="section-title">Add to your home screen</h2>
+        <p class="help" id="install-help">Install this page so it opens like an app, and so it can keep its saved times on the phone.</p>
+        <button type="button" id="install-button" class="button" hidden>Install app</button>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Prayer times from <a href="https://masjidzeenatulislam.org.uk">Masjid Zeenatul Islam</a>, Coventry. Calculated times, when you switch them on, come from the <a href="https://aladhan.com/prayer-times-api">Aladhan API</a>. The Qibla bearing is worked out on your phone from the Kaaba at 21.4225°N, 39.8262°E.</p>
+    </footer>
+  </div>
+
+  <noscript>
+    <p class="banner">This app needs JavaScript. It is a single page with no build step, and the prayer times are fetched in the browser.</p>
+  </noscript>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+# Publishes the site to GitHub Pages on every push to main.
+#
+# The site is plain files, so there is no build. This workflow copies the
+# pages into _site and hands that folder to GitHub Pages. Tests, the README
+# and this workflow stay in the repository and are not part of the website.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source: GitHub Actions.
+# After that, pushing to main is enough. The address is
+# https://ashpandor.github.io/prayer-times/
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Collect the site files
+        run: |
+          mkdir -p _site
+          cp index.html styles.css app.js sw.js manifest.json .nojekyll _site/
+          cp -r lib icons _site/
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

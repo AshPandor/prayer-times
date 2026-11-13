@@ -1,0 +1,385 @@
+/*
+ * Mobile-first layout. The column never grows past a phone width, so a desktop
+ * window just shows the same narrow page in the middle.
+ *
+ * Colours follow the system: the :root block is light, and the media query
+ * below replaces the variables when the phone is in dark mode. Components use
+ * the variables, so they do not each need their own dark rules.
+ */
+
+:root {
+  color-scheme: light;
+  --bg: #f3f6fb;
+  --bg-accent: #e5f6f8;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #526072;
+  --accent: #0e7490;
+  --accent-strong: #155e75;
+  --accent-soft: #cffafe;
+  --line: #d5e0ea;
+  --hero-from: #0e7490;
+  --hero-to: #164e63;
+  --hero-text: #f8fafc;
+  --hero-muted: rgba(248, 250, 252, 0.86);
+  --needle: #0891b2;
+  --button: #0e7490;
+  --button-text: #ffffff;
+  --shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  --radius: 18px;
+  --tap: 44px;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --bg-accent: #123044;
+    --card: #141c2b;
+    --text: #e7eef8;
+    --muted: #a8b6c9;
+    --accent: #22d3ee;
+    --accent-strong: #67e8f9;
+    --accent-soft: #083344;
+    --line: #243044;
+    --hero-from: #155e75;
+    --hero-to: #0b3344;
+    --hero-text: #f0f9ff;
+    --hero-muted: rgba(240, 249, 255, 0.84);
+    --needle: #22d3ee;
+    --shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  }
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--text);
+  background:
+    radial-gradient(900px 320px at 50% -80px, var(--bg-accent), transparent 70%),
+    var(--bg);
+  min-height: 100vh;
+}
+
+.app {
+  width: min(32rem, 100%);
+  margin: 0 auto;
+  padding:
+    calc(20px + env(safe-area-inset-top))
+    16px
+    calc(28px + env(safe-area-inset-bottom));
+}
+
+h1, h2, p { margin: 0; }
+
+h1 {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.location {
+  margin-top: 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.muted, .help {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.help { margin: 0 0 8px; }
+
+.app-header { margin-bottom: 16px; }
+
+.app-header .muted { margin-top: 2px; }
+
+.banners { display: flex; flex-direction: column; gap: 8px; }
+
+.banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.banners .banner { margin: 0; }
+
+.banners:not(:empty) { margin-bottom: 12px; }
+
+#retry-button { margin-bottom: 12px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin: 0 0 12px;
+}
+
+.hero {
+  background: linear-gradient(165deg, var(--hero-from), var(--hero-to));
+  border-color: transparent;
+  color: var(--hero-text);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--hero-muted);
+}
+
+.next-name {
+  margin-top: 4px;
+  font-size: clamp(2rem, 9vw, 2.7rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.countdown {
+  margin-top: 8px;
+  font-size: clamp(2.5rem, 12vw, 3.4rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.hero-note {
+  margin-top: 8px;
+  color: var(--hero-muted);
+}
+
+.section-title {
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+}
+
+.prayer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.prayer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border-radius: 12px;
+}
+
+.prayer-row + .prayer-row { margin-top: 4px; }
+
+.prayer-row.is-next {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.prayer-row.is-sun { color: var(--muted); }
+
+.prayer-name {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.prayer-times {
+  text-align: right;
+}
+
+.prayer-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.jamah {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.prayer-row.is-next .jamah { color: var(--accent-strong); }
+
+.method-line { margin-top: 10px; }
+
+.compass-face {
+  position: relative;
+  width: min(280px, 78vw);
+  margin: 4px auto 12px;
+}
+
+.compass { display: block; width: 100%; height: auto; }
+
+.lubber {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 12px solid var(--needle);
+  z-index: 1;
+}
+
+.dial-face { fill: var(--bg); }
+.dial-ring { fill: none; stroke: var(--line); stroke-width: 2; }
+.tick { stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
+.tick.major { stroke: var(--muted); stroke-width: 3; }
+.cardinal {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font);
+}
+.cardinal.north { fill: var(--accent-strong); }
+.needle-head { fill: var(--needle); }
+.needle-tail { fill: var(--muted); }
+.hub { fill: var(--card); stroke: var(--needle); stroke-width: 3; }
+
+#compass-rose,
+#qibla-needle {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.qibla-readout {
+  font-size: 1.15rem;
+  font-weight: 750;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#qibla-help { margin-top: 6px; text-align: center; }
+
+#compass-button { margin-top: 12px; }
+
+.field { margin-bottom: 14px; }
+
+.field > label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 16px; /* 16px stops iOS zooming the page when the field is focused */
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--button);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--accent-strong);
+  border: 2px solid var(--accent);
+}
+
+.row-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.reminder { margin-top: 8px; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.check input {
+  width: 1.35rem;
+  height: 1.35rem;
+  accent-color: var(--button);
+}
+
+.footer {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.footer a { color: var(--accent-strong); }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .button:hover { filter: brightness(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
