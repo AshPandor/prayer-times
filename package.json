@@ -1,0 +1,9 @@
+{
+  "name": "prayer-times",
+  "private": true,
+  "type": "module",
+  "description": "Prayer Times & Qibla, a mobile-first PWA with no build step.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
