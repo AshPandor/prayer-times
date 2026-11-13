@@ -15,7 +15,7 @@
  * signal is served from this cache.
  */
 
-const CACHE = 'prayer-times-shell-v2';
+const CACHE = 'prayer-times-shell-v3';
 
 // Paths are relative to this file, so they work at /prayer-times/ and at
 // http://localhost/ during a local preview.

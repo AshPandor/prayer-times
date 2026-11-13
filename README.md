@@ -4,7 +4,7 @@ A small website you can open on your phone. It shows today’s five prayers and 
 
 It is plain HTML, CSS and JavaScript. There is no build step. GitHub Pages serves the files as they are.
 
-By default the times are the ones published by [Masjid Zeenatul Islam](https://masjidzeenatulislam.org.uk) on Stoney Stanton Road, Coventry: when each prayer begins, and when the jamaat is. The Qibla is calculated from the mosque. If you are away, Settings can switch to calculated times for another place (Moonsighting Committee and Hanafi Asr to start with). Settings are saved on the phone.
+By default the app follows where you are. In Darlaston and Wednesbury (WS10) the times are [Masjid-e-Umar](https://masjid-e-umar.co.uk) on Bills Street. Everywhere else they are [Masjid Zeenatul Islam](https://masjidzeenatulislam.org.uk) on Stoney Stanton Road, Coventry. Each row shows when the prayer begins and when the jamaat is. The Qibla is calculated from that mosque. Settings can lock one mosque, or switch to calculated times for another place. Settings are saved on the phone.
 
 ## How to set up Pages and install on your phone
 
@@ -38,7 +38,7 @@ The compass permission and notifications expect that installed icon, not a Safar
 
 ### Location
 
-The timetable follows Masjid Zeenatul Islam, so the app does not need your location for the prayer times. The compass uses the mosque. If you are travelling, open Settings, choose **Calculated for a place**, then allow location or type a city.
+Allow location if you want the app to notice when you are in Darlaston or Wednesbury and switch to Masjid-e-Umar. If location is off, it stays on Zeenatul Islam. You can also pick either mosque under Settings, and it will stay there. Calculated times are the last option in that list: allow location or type a city.
 
 ## What you learn from this code
 
@@ -46,7 +46,7 @@ The timetable follows Masjid Zeenatul Islam, so the app does not need your locat
 - **`manifest.json` and `sw.js`** — how a site becomes something you can install, and how a service worker keeps the app shell for offline use. The paths are relative (`./`) so the same files work in the `/prayer-times/` folder on GitHub Pages and on your laptop.
 - **`lib/prayer.js`** — reading `"05:45 (GMT)"`, deciding the next prayer (including “after Isha, it is tomorrow’s Fajr”), and turning a countdown into `02:29:00`. Times are wall-clock times in the city’s timezone, so British Summer Time is handled on purpose.
 - **`lib/qibla.js`** — the great-circle bearing to the Kaaba at 21.4225°N, 39.8262°E. From Coventry that is about 119° clockwise from true north. The same file reads a compass event: `webkitCompassHeading` on iPhone, absolute `alpha` elsewhere, and it ignores a heading that is not really north.
-- **`lib/mosque.js`** — reading the mosque’s own timetable (beginning time and jamaat) and deciding whether the next thing is “Fajr begins” or “Fajr jamaat”. On Friday the Dhuhr jamaat is labelled Jumu'ah.
+- **`lib/mosque.js`** — reading each mosque’s timetable (beginning time and jamaat) and deciding whether the next thing is “Fajr begins” or “Fajr jamaat”. On Friday the Dhuhr jamaat is labelled Jumu'ah. A point within 6 km of Masjid-e-Umar counts as Darlaston and Wednesbury.
 - **`lib/places.js` and `lib/aladhan.js`** — the optional calculated times. GPS first, then a city name turned into coordinates (Open-Meteo), then Aladhan’s month endpoint. Aladhan’s own city endpoint currently returns a placeholder latitude and longitude, which would aim the Qibla at the wrong place, so we do not use it.
 - **`lib/storage.js`** — `localStorage` remembers the settings and the downloaded month. That month is what makes the timetable work offline. The service worker does not cache Aladhan; it only caches our files.
 - **Notifications in `app.js`** — the Notifications API can schedule “ten minutes before Dhuhr” while the page is open. It cannot promise a ping after the app has been closed. That needs a server, and v1 does not have one.
@@ -77,4 +77,4 @@ The icons can be redrawn with `python3 scripts/generate-icons.py` (needs Pillow)
 
 - Reminders only fire while the app is open. Phones may also delay them when the screen is off. Real background reminders need push notifications and a server.
 - iPhone compass access has to start from a button tap (`DeviceOrientationEvent.requestPermission`). The bearing is true north; the compass is magnetic north. Around Coventry those differ by about a degree.
-- Zeenatul Islam’s printed sheet is the one this app follows. Calculated times are a different source, and they can be a few minutes away from the mosque. The mosque sometimes changes jamaat; the app shows whatever the mosque site is publishing.
+- The app shows whatever each mosque site is publishing, and a mosque sometimes changes jamaat. Calculated times are a different source, and they can be a few minutes away from either mosque.
