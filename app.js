@@ -23,10 +23,14 @@ import {
 } from './lib/aladhan.js';
 import {
   MOSQUE,
+  mosqueById,
+  mosqueForCoordinates,
   momentsOnDay,
   nextMosqueMoment,
   prayerTimeUrl,
+  umarTimetableUrl,
   unwrapMosqueDays,
+  unwrapUmarDays,
 } from './lib/mosque.js';
 import {
   DEFAULT_PLACE,
@@ -135,7 +139,7 @@ function loadAppSettings() {
       typeof saved.country === 'string' && saved.country.trim()
         ? saved.country.trim()
         : DEFAULT_PLACE.country,
-    timetable: saved.timetable === 'calculated' ? 'calculated' : 'mosque',
+    timetable: normalizeTimetable(saved.timetable),
     locationMode: saved.locationMode === 'city' ? 'city' : 'auto',
     remindersEnabled: saved.remindersEnabled === true,
     reminderMinutes: Number.isFinite(minutes) ? Math.min(90, Math.max(0, Math.round(minutes))) : 10,
@@ -157,12 +161,18 @@ function fillSelect(select, options) {
   }
 }
 
+function normalizeTimetable(value) {
+  if (value === 'calculated' || value === 'zeenatul' || value === 'umar' || value === 'auto') return value;
+  // Older saves used "mosque" for Zeenatul Islam. Auto now picks the mosque from where you are.
+  return 'auto';
+}
+
 function usingMosque() {
   return state.settings.timetable !== 'calculated';
 }
 
 function syncTimetableFields() {
-  el.timetable.value = usingMosque() ? 'mosque' : 'calculated';
+  el.timetable.value = state.settings.timetable;
   el.calculatedFields.hidden = usingMosque();
 }
 
@@ -205,7 +215,7 @@ function bindForm() {
   });
 
   el.timetable.addEventListener('change', () => {
-    state.settings.timetable = el.timetable.value === 'calculated' ? 'calculated' : 'mosque';
+    state.settings.timetable = normalizeTimetable(el.timetable.value);
     persistSettings();
     syncTimetableFields();
     refresh();
@@ -377,55 +387,80 @@ async function fetchMonth(query) {
   return body.data;
 }
 
-function mosquePlace() {
+function mosquePlace(mosque) {
   return {
     source: 'mosque',
-    label: MOSQUE.name,
-    latitude: MOSQUE.latitude,
-    longitude: MOSQUE.longitude,
-    timeZone: MOSQUE.timeZone,
+    label: mosque.name,
+    latitude: mosque.latitude,
+    longitude: mosque.longitude,
+    timeZone: mosque.timeZone,
   };
 }
 
-async function fetchMosqueJson(filter) {
-  const response = await fetch(prayerTimeUrl(filter), { signal: AbortSignal.timeout(15000) });
-  if (!response.ok) throw new Error(`The mosque site replied with ${response.status}.`);
-  return response.json();
+function mosqueCacheKey(mosque) {
+  // Zeenatul Islam keeps the key from the first version, so an already saved year still works.
+  return mosque.id === 'zeenatul' ? MOSQUE_KEY : `prayer-times-${mosque.id}`;
+}
+
+async function chooseMosque() {
+  const choice = state.settings.timetable;
+  state.areaNote = '';
+  if (choice === 'zeenatul' || choice === 'umar') return mosqueById(choice);
+
+  try {
+    const position = await requestPosition();
+    state.usingCityFallback = false;
+    return mosqueForCoordinates(position.coords.latitude, position.coords.longitude);
+  } catch (error) {
+    state.geoMessage = geoErrorMessage(error);
+    state.areaNote = 'location-off';
+    return MOSQUE;
+  }
+}
+
+async function fetchMosqueDays(mosque) {
+  if (mosque.id === 'umar') {
+    const response = await fetch(umarTimetableUrl(), { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`${mosque.name} replied with ${response.status}.`);
+    return unwrapUmarDays(await response.json());
+  }
+  const response = await fetch(prayerTimeUrl('year'), { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`${mosque.name} replied with ${response.status}.`);
+  // Hijri on this feed can disagree with the mosque homepage, so it is not shown.
+  return unwrapMosqueDays(await response.json());
 }
 
 async function loadMosque() {
-  state.timeZone = MOSQUE.timeZone;
-  state.place = mosquePlace();
+  const mosque = state.mosque;
+  state.timeZone = mosque.timeZone;
+  state.place = mosquePlace(mosque);
 
   let days = null;
   let source = 'network';
   try {
-    // The year is one download. Tomorrow, and an offline day later this year, are in it.
-    // Hijri on this feed can disagree with the date printed on the mosque homepage,
-    // so the page shows the Gregorian date from the timetable and leaves Hijri off.
-    days = unwrapMosqueDays(await fetchMosqueJson('year'));
-    if (days.length === 0) throw new Error('The mosque timetable was empty.');
-    saveJson(MOSQUE_KEY, { savedAt: Date.now(), days });
+    days = await fetchMosqueDays(mosque);
+    if (days.length === 0) throw new Error(`The ${mosque.name} timetable was empty.`);
+    saveJson(mosqueCacheKey(mosque), { savedAt: Date.now(), days });
   } catch (error) {
-    const cached = loadJson(MOSQUE_KEY, null);
+    const cached = loadJson(mosqueCacheKey(mosque), null);
     if (!cached || !Array.isArray(cached.days) || cached.days.length === 0) {
       const offline = !navigator.onLine;
       throw new Error(
         offline
-          ? 'You are offline, and the Zeenatul Islam timetable has not been saved on this phone yet.'
-          : (error && error.message) || 'Could not download the Zeenatul Islam timetable.',
+          ? `You are offline, and the ${mosque.name} timetable has not been saved on this phone yet.`
+          : (error && error.message) || `Could not download the ${mosque.name} timetable.`,
       );
     }
     days = cached.days;
     source = 'cache';
   }
 
-  const isoToday = isoDateInZone(new Date(), MOSQUE.timeZone);
+  const isoToday = isoDateInZone(new Date(), mosque.timeZone);
   const index = days.findIndex((day) => day.isoDate === isoToday);
   if (index < 0) {
     state.today = null;
     state.tomorrow = null;
-    throw new Error('The saved mosque timetable does not include today. Connect once to download this year.');
+    throw new Error(`The saved ${mosque.name} timetable does not include today. Connect once to download it again.`);
   }
   state.today = days[index];
   state.tomorrow = days[index + 1] || null;
@@ -524,13 +559,17 @@ async function refresh() {
   const seq = ++requestSeq;
   state.loading = true;
   state.error = '';
-  if (usingMosque()) state.place = mosquePlace();
+  if (usingMosque()) {
+    state.mosque = mosqueById(state.settings.timetable === 'umar' ? 'umar' : 'zeenatul');
+    state.place = mosquePlace(state.mosque);
+  }
   render();
 
   try {
     if (usingMosque()) {
-      state.place = mosquePlace();
       state.usingCityFallback = false;
+      state.mosque = await chooseMosque();
+      state.place = mosquePlace(state.mosque);
       render();
       await loadMosque();
     } else {
@@ -572,7 +611,9 @@ function renderHeader() {
 
   el.locationName.textContent = state.place.source === 'gps' ? 'Current location' : state.place.label;
   el.locationDetail.textContent =
-    state.place.source === 'mosque' ? MOSQUE.address : formatCoords(state.place.latitude, state.place.longitude);
+    state.place.source === 'mosque'
+      ? (state.mosque && state.mosque.address) || MOSQUE.address
+      : formatCoords(state.place.latitude, state.place.longitude);
 
   if (!state.today) {
     el.dateLine.textContent = state.loading ? 'Loading today’s times…' : '';
@@ -600,7 +641,11 @@ function renderStatus() {
     notes.push('Could not refresh, using saved times.');
   }
 
-  if (state.usingCityFallback && state.place) {
+  if (state.areaNote === 'location-off' && state.today && state.today.source === 'mosque') {
+    notes.push('Location is off, so these are Zeenatul Islam times. In Darlaston and Wednesbury the app uses Masjid-e-Umar.');
+  }
+
+  if (state.usingCityFallback && state.place && state.today && state.today.source !== 'mosque') {
     const why = state.geoMessage || 'Location is unavailable.';
     notes.push(`${why} Showing ${state.place.label} instead.`);
   }
@@ -624,7 +669,9 @@ function renderMethodLine() {
     return;
   }
   if (state.today.source === 'mosque') {
-    el.methodLine.textContent = 'The large time is when the prayer begins. Jamaat is when the mosque prays together.';
+    let text = 'The large time is when the prayer begins. Jamaat is when the mosque prays together.';
+    if (state.mosque && state.mosque.fridayNote && state.today.isFriday) text += ` ${state.mosque.fridayNote}`;
+    el.methodLine.textContent = text;
     return;
   }
   const method = methodById(state.settings.method);

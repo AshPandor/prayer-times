@@ -94,9 +94,11 @@
         <form id="settings-form">
           <div class="field">
             <label for="timetable">Times</label>
-            <p class="help" id="timetable-help">Masjid Zeenatul Islam on Stoney Stanton Road publishes its own beginning and jamaat times. Calculated times are for when you are away from the mosque.</p>
+            <p class="help" id="timetable-help">Where I am uses Masjid-e-Umar in Darlaston and Wednesbury (WS10), and Masjid Zeenatul Islam everywhere else. Pick a mosque to keep that timetable fixed.</p>
             <select id="timetable" name="timetable" aria-describedby="timetable-help">
-              <option value="mosque" selected>Masjid Zeenatul Islam</option>
+              <option value="auto" selected>Where I am</option>
+              <option value="zeenatul">Masjid Zeenatul Islam, Coventry</option>
+              <option value="umar">Masjid-e-Umar, Darlaston</option>
               <option value="calculated">Calculated for a place</option>
             </select>
           </div>
@@ -149,7 +151,7 @@
     </main>
 
     <footer class="footer">
-      <p>Prayer times from <a href="https://masjidzeenatulislam.org.uk">Masjid Zeenatul Islam</a>, Coventry. Calculated times, when you switch them on, come from the <a href="https://aladhan.com/prayer-times-api">Aladhan API</a>. The Qibla bearing is worked out on your phone from the Kaaba at 21.4225°N, 39.8262°E.</p>
+      <p>Prayer times from <a href="https://masjidzeenatulislam.org.uk">Masjid Zeenatul Islam</a>, Coventry, and <a href="https://masjid-e-umar.co.uk">Masjid-e-Umar</a>, Darlaston. Calculated times, when you switch them on, come from the <a href="https://aladhan.com/prayer-times-api">Aladhan API</a>. The Qibla bearing is worked out on your phone from the Kaaba at 21.4225°N, 39.8262°E.</p>
     </footer>
   </div>
 

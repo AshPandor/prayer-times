@@ -4,12 +4,16 @@ import test from 'node:test';
 import { qiblaBearing } from '../lib/qibla.js';
 import {
   MOSQUE,
+  UMAR,
   attachHijri,
   clockFromApi,
   jamahLabel,
+  mosqueForCoordinates,
   nextMosqueMoment,
   normalizeMosqueDay,
+  normalizeUmarDay,
   unwrapMosqueDays,
+  unwrapUmarDays,
 } from '../lib/mosque.js';
 
 // 13 Nov 2026, taken from the mosque's own API.
@@ -113,4 +117,53 @@ test('the year feed is unwrapped and sorted, and Hijri is attached from today', 
 test('qibla from the mosque is still about 119 degrees', () => {
   const bearing = qiblaBearing(MOSQUE.latitude, MOSQUE.longitude);
   assert.ok(bearing > 118 && bearing < 120, `got ${bearing}`);
+});
+
+// 13 Nov 2026 from the Masjid-e-Umar feed. Bank details in that response are not used.
+const UMAR_ROW = {
+  salatdate: '2026-11-13',
+  day: 'Friday',
+  fajarstart: '05:46',
+  fajarjamat: '06:45',
+  sunrise: '07:26',
+  zuhrstart: '11:56',
+  zuhrjamat: '12:35',
+  asarstart: '14:28',
+  asarjamat: '14:50',
+  maghrib: '16:23',
+  eshastart: '17:53',
+  eshajamat: '18:15',
+  jumma: '12:35',
+};
+
+test('Masjid-e-Umar keeps beginning times and jamaat, and Friday is Jumu\'ah', () => {
+  const day = normalizeUmarDay(UMAR_ROW);
+  assert.equal(day.timings.Fajr, '05:46');
+  assert.equal(day.jamah.Fajr, '06:45');
+  assert.equal(day.timings.Dhuhr, '11:56');
+  assert.equal(day.jamah.Dhuhr, '12:35');
+  assert.equal(day.timings.Asr, '14:28');
+  assert.equal(day.jamah.Asr, '14:50');
+  assert.equal(day.timings.Maghrib, '16:23');
+  assert.equal(day.jamah.Maghrib, '16:23');
+  assert.equal(day.timings.Isha, '17:53');
+  assert.equal(day.jamah.Isha, '18:15');
+  assert.equal(day.isFriday, true);
+  assert.equal(jamahLabel(day, 'Dhuhr'), "Jumu'ah");
+
+  const days = unwrapUmarDays([{ salats: [UMAR_ROW], sortcode: 'do-not-keep', account: 'do-not-keep' }]);
+  assert.equal(days.length, 1);
+  assert.equal(days[0].timings.Fajr, '05:46');
+  assert.equal(JSON.stringify(days[0]).includes('do-not-keep'), false);
+
+  const atNoon = nextMosqueMoment(day, null, 12 * 60);
+  assert.equal(atNoon.label, "Jumu'ah");
+  assert.equal(atNoon.atMinutes, 12 * 60 + 35);
+});
+
+test('Darlaston and Wednesbury use Masjid-e-Umar, and Coventry does not', () => {
+  assert.equal(mosqueForCoordinates(52.57, -2.035).id, 'umar');
+  assert.equal(mosqueForCoordinates(52.5519, -2.0197).id, 'umar');
+  assert.equal(mosqueForCoordinates(MOSQUE.latitude, MOSQUE.longitude).id, 'zeenatul');
+  assert.equal(mosqueForCoordinates(UMAR.latitude, UMAR.longitude).id, 'umar');
 });
